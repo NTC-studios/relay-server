@@ -1,0 +1,19 @@
+{
+    "name": "ibg-relay-server",
+    "version": "1.0.0",
+    "description": "A relay server for The Invisible Board Game",
+    "main": "dist/index.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/NTC-studios/relay-server.git"
+    },
+    "keywords": [
+        "relay-server",
+        "godot"
+    ],
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/NTC-studios/relay-server/issues"
+    },
+    "homepage": "https://github.com/NTC-studios/relay-server#readme"
+}
