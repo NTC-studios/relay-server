@@ -42,8 +42,6 @@ wss.on("connection", (ws, req) => {
         }
     })
 
-
-
     ws.on("close", () => {
         if (ws === lobby.host) {
             lobby.clients.forEach(client => client.close(4444, "Host ended connection."));
