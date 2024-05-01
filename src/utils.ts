@@ -5,7 +5,7 @@ export function makeLobbyID(length = 5) {
 
     let result = "";
     for (let i = 0; i < length; i++) {
-        const randomChar = CHARSET.charAt(randomInt(0, CHARSET.length));
+        const randomChar = CHARSET.charAt(randomInt(0, CHARSET.length - 1));
         result += randomChar;
     }
 
