@@ -38,6 +38,8 @@ wss.on("connection", (ws, req) => {
 
     ws.on("close", () => {
         lobby.clients.delete(ws);
+
+        if (lobby.clients.size === 0) delete lobbies[lobbyID];
     })
 })
 
@@ -51,8 +53,11 @@ server.on("request", (req, res) => {
     const response = {
         lobby_id: lobbyID
     };
+
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(response))
+    res.end(JSON.stringify(response));
+
+    console.log(`Created lobby with ID ${lobbyID}`);
 })
 
 server.listen(PORT, () => {
