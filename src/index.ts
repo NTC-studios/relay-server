@@ -9,6 +9,7 @@ const id_length = 5;
 
 type Lobbies = {
     [key: string]: {
+        host: WebSocket | null
         clients: Set<WebSocket>
     }
 }
@@ -26,20 +27,30 @@ wss.on("connection", (ws, req) => {
     }
 
     const lobby = lobbies[lobbyID];
-    lobby.clients.add(ws);
+    if (!lobby.host) lobby.host = ws;
+    else lobby.clients.add(ws);
 
     ws.on("message", (message) => {
-        lobby.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message.toString()); // Raw data doesn't work (to our knowledge)
-            }
-        })
+        if (ws === lobby.host) {
+            lobby.clients.forEach((client) => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(message.toString()); // Raw data doesn't work (to our knowledge)
+                }
+            })
+        } else {
+            lobby.host!.send(message.toString());
+        }
     })
 
-    ws.on("close", () => {
-        lobby.clients.delete(ws);
 
-        if (lobby.clients.size === 0) delete lobbies[lobbyID];
+
+    ws.on("close", () => {
+        if (ws === lobby.host) {
+            lobby.clients.forEach(client => client.close(4444, "Host ended connection."));
+            delete lobbies[lobbyID];
+            console.log(`Deleted lobby with ID ${lobbyID}`);
+
+        } else lobby.clients.delete(ws);
     })
 })
 
@@ -49,7 +60,7 @@ server.on("request", (req, res) => {
     let lobbyID = makeLobbyID(id_length);
     while (lobbyID in lobbies) lobbyID = makeLobbyID(id_length);
 
-    lobbies[lobbyID] = { clients: new Set() };
+    lobbies[lobbyID] = { clients: new Set(), host: null };
     const response = {
         lobby_id: lobbyID
     };
