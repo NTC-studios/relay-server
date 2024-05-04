@@ -1,18 +1,34 @@
 import http from "http";
 import WebSocket from "ws";
-import { makeLobbyID } from "./utils.js";
+import { generateID } from "./utils.js";
 
 const PORT = 8080;
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 const id_length = 5;
 
+type WSMessage = {
+    sender: string;
+    message: string;
+};
+
+type Client = {
+    id: string;
+    socket: WebSocket;
+};
+
+// we could use a Map instead for the clients but isn't really needed
+// since we are just broadcasting messages to all clients (so they all have current state)
+// maybe will change in the future
+type Lobby = {
+    host: Client | null;
+    clients: Set<Client>;
+};
+
 type Lobbies = {
-    [key: string]: {
-        host: WebSocket | null
-        clients: Set<WebSocket>
-    }
-}
+    [key: string]: Lobby;
+};
+
 const lobbies: Lobbies = {};
 
 wss.on("connection", (ws, req) => {
@@ -27,48 +43,76 @@ wss.on("connection", (ws, req) => {
     }
 
     const lobby = lobbies[lobbyID];
-    if (!lobby.host) lobby.host = ws;
-    else lobby.clients.add(ws);
+    if (!lobby) {
+        ws.close(1003, "Lobby not found");
+        return;
+    }
+
+    let clientID = generateID(10);
+    while (clientID in lobby.clients) {
+        clientID = generateID(id_length);
+    }
+
+    let currentClient: Client = { id: clientID, socket: ws };
+
+    // client will become host if there is existing no host
+    if (!lobby.host) {
+        lobby.host = currentClient;
+        console.log(`Host ${clientID} joined lobby ${lobbyID}`);
+    } else {
+        lobby.clients.add(currentClient);
+        console.log(`Client ${clientID} joined lobby ${lobbyID}`);
+    }
 
     ws.on("message", (message) => {
-        if (ws === lobby.host) {
+        const messageObj: WSMessage = {
+            sender: clientID,
+            message: message.toString(),
+        };
+        const messageJSONString = JSON.stringify(messageObj);
+
+        if (ws === lobby.host!.socket) {
             lobby.clients.forEach((client) => {
-                if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(message.toString()); // Raw data doesn't work (to our knowledge)
+                if (
+                    client.socket !== ws &&
+                    client.socket.readyState === WebSocket.OPEN
+                ) {
+                    client.socket.send(messageJSONString); // Raw data doesn't work (to our knowledge)
                 }
-            })
+            });
         } else {
-            lobby.host!.send(message.toString());
+            lobby.host!.socket.send(messageJSONString);
         }
-    })
+    });
 
     ws.on("close", () => {
-        if (ws === lobby.host) {
-            lobby.clients.forEach(client => client.close(4444, "Host ended connection."));
+        if (ws === lobby.host!.socket) {
+            lobby.clients.forEach((client) =>
+                client.socket.close(4444, "Host ended connection.")
+            );
             delete lobbies[lobbyID];
             console.log(`Deleted lobby with ID ${lobbyID}`);
-
-        } else lobby.clients.delete(ws);
-    })
-})
+        } else lobby.clients.delete(currentClient);
+    });
+});
 
 server.on("request", (req, res) => {
     if (req.url !== "/create_lobby" && req.method !== "POST") return;
 
-    let lobbyID = makeLobbyID(id_length);
-    while (lobbyID in lobbies) lobbyID = makeLobbyID(id_length);
+    let lobbyID = generateID(id_length);
+    while (lobbyID in lobbies) lobbyID = generateID(id_length);
 
     lobbies[lobbyID] = { clients: new Set(), host: null };
     const response = {
-        lobby_id: lobbyID
+        lobby_id: lobbyID,
     };
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(response));
 
     console.log(`Created lobby with ID ${lobbyID}`);
-})
+});
 
 server.listen(PORT, () => {
     console.log(`Server started with port ${PORT}`);
-})
+});
